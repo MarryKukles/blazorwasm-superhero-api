@@ -1,0 +1,194 @@
+﻿
+@page "/"
+
+@using BlazorWasmSuperHeroApi.Models
+@inject HttpClient Http
+
+<PageTitle>SuperHero API</PageTitle>
+
+<div class="container mt-4">
+
+    <h2 class="mb-4">SuperHero API</h2>
+
+    <div class="input-group mb-4">
+
+        <input class="form-control"
+               placeholder="Pesquisar super-herói..."
+               @bind="searchName"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown" />
+
+        <button class="btn btn-primary"
+                @onclick="SearchHero"
+                disabled="@isLoading">
+            Pesquisar
+        </button>
+
+    </div>
+
+    @if (isLoading)
+    {
+        <p>Carregando...</p>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <p class="text-danger">@errorMessage</p>
+    }
+    else if (heroes != null)
+    {
+        <div class="row">
+
+            @foreach (var hero in heroes)
+            {
+                <div class="col-md-4 mb-4">
+
+                    <div class="card h-100 shadow-sm">
+
+                        @if (!string.IsNullOrWhiteSpace(hero.Image?.Url))
+                        {
+                            <img src="@hero.Image.Url"
+                                 class="card-img-top"
+                                 alt="@hero.Name"
+                                 loading="eager"
+                                 referrerpolicy="no-referrer"
+                                 style="height: 220px; width: 100%; object-fit: contain; background-color: #f8f9fa;"
+                                 @onerror="() => HandleImageError(hero.Id)" />
+                        }
+                        else
+                        {
+                            <div class="d-flex align-items-center justify-content-center bg-light text-muted"
+                                 style="height: 220px;">
+                                Imagem indisponível
+                            </div>
+                        }
+
+                        <div class="card-body">
+
+                            <h4>
+                                @hero.Name
+                                <small class="text-muted">
+                                    (@hero.Biography?.FullName)
+                                </small>
+                            </h4>
+
+                            <p>
+                                <strong>Editora:</strong>
+                                @hero.Biography?.Publisher
+                            </p>
+
+                            <hr />
+
+                            <h5 class="text-secondary">POWERSTATS</h5>
+
+                            <p class="mb-1">
+                                Inteligência: <strong>@hero.PowerStats?.Intelligence</strong>
+                            </p>
+
+                            <p class="mb-1">
+                                Força: <strong>@hero.PowerStats?.Strength</strong>
+                            </p>
+
+                            <p class="mb-1">
+                                Velocidade: <strong>@hero.PowerStats?.Speed</strong>
+                            </p>
+
+                            <p class="mb-1">
+                                Combate: <strong>@hero.PowerStats?.Combat</strong>
+                            </p>
+
+                            <h5 class="text-secondary mt-4">APARIÇÃO</h5>
+
+                            <p>
+                                @hero.Biography?.FirstAppearance
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </div>
+            }
+
+        </div>
+    }
+
+</div>
+
+@code {
+
+    private string searchName = "batman";
+
+    private bool isLoading;
+
+    private string errorMessage = string.Empty;
+
+    private List<SuperHero>? heroes;
+
+    private HashSet<string> failedImages = new();
+
+    private const string AccessToken = "0003251bb992d935406a1d6a32ee1583";
+
+    private void HandleImageError(string? heroId)
+    {
+        if (!string.IsNullOrWhiteSpace(heroId))
+        {
+            failedImages.Add(heroId);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SearchHero()
+    {
+        if (string.IsNullOrWhiteSpace(searchName))
+        {
+            errorMessage = "Informe o nome do personagem.";
+            heroes = null;
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty;
+            heroes = null;
+            failedImages.Clear();
+
+            var url = $"{AccessToken}/search/{Uri.EscapeDataString(searchName.Trim())}";
+
+            var response = await Http.GetFromJsonAsync<SuperHeroResponse>(url);
+
+            if (response?.Response == "success" &&
+                response.Results != null &&
+                response.Results.Count > 0)
+            {
+                heroes = response.Results;
+            }
+            else
+            {
+                errorMessage = "Nenhum personagem encontrado.";
+            }
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "Erro ao consultar a API.";
+        }
+        catch (Exception)
+        {
+            errorMessage = "Ocorreu um erro inesperado.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(
+        Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchHero();
+        }
+    }
+}
